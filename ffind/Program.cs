@@ -66,6 +66,7 @@ namespace ffind
                 Console.WriteLine("When searching it searches the ENTIRE path of the file, so keep that in mind.");
                 Console.WriteLine();
                 Console.WriteLine("Created by Krutonium - https://github.com/Krutonium");
+		Console.WriteLine("Revised by xero-lib - https://github.com/xero-lib");
                 Console.WriteLine("I borrowed some code for traversing the filesystem cleanly from Microsoft");
                 Console.WriteLine("https://docs.microsoft.com/en-us/dotnet/csharp/programming-guide/file-system/how-to-iterate-through-a-directory-tree");
             }
@@ -113,10 +114,11 @@ namespace ffind
         
         public static void createConfig()
         {
+	//Currently only supported by Arch based operating systems
             cfg.PruneNames.Add(".git");
             cfg.PruneNames.Add(".hg");
             cfg.PruneNames.Add(".svn");
-            
+           //#########################// 
             cfg.PrunePaths.Add("/afs");
             cfg.PrunePaths.Add("/dev");
             cfg.PrunePaths.Add("/media");
@@ -126,12 +128,14 @@ namespace ffind
             cfg.PrunePaths.Add("/tmp");
             cfg.PrunePaths.Add("/udev");
             cfg.PrunePaths.Add("/var/cache");
-            cfg.PrunePaths.Add("/var/lib/pacman/local");
             cfg.PrunePaths.Add("/var/lock");
             cfg.PrunePaths.Add("/var/run");
             cfg.PrunePaths.Add("/var/spool");
-            cfg.PrunePaths.Add("/var/tmp");
+            cfg.PrunePaths.Add("/var/lib/pacman/local"),
+		    cfg.PrunePaths.Add("/var/tmp");
+	    cfg.PrunePaths.Add("/proc");
         }
+
         public static void UpdateDB()
         {
             //Start Indexing from root.
@@ -149,11 +153,11 @@ namespace ffind
             try
             {
                 files = root.GetFiles("*.*");
-            }
-            catch (UnauthorizedAccessException e)
-            {
+             catch (UnauthorizedAccessException e)
+           	 {
                 //We're not authorized, and that's fine.
-            }
+                Console.WriteLine("Cannot access {0}, Permission Denied, but this is expected.", e);
+		 }
             catch (System.IO.DirectoryNotFoundException e)
             {
                 Console.WriteLine(e.Message);
