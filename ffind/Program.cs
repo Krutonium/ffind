@@ -7,15 +7,16 @@ using Newtonsoft.Json;
 
 namespace ffind
 {
-    class Program
+    internal class Program
     {
-        private static config cfg;
-        private static List<string> fileList;
-        static void Main(string[] args)
+        private static Config _cfg;
+        private static List<string> _fileList;
+
+        private static void Main(string[] args)
         {
-            string Appdata = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "ffind/");
-            string ConfigPath = Path.Combine(Appdata, "config.json");
-            string dbPath = Path.Combine(Appdata, "db.json");
+            string appdata = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "ffind/");
+            string configPath = Path.Combine(appdata, "config.json");
+            string dbPath = Path.Combine(appdata, "db.json");
             
             string toFind = "";
             foreach (string thing in args)
@@ -29,19 +30,19 @@ namespace ffind
                 return;
             }
             
-            if (!Directory.Exists(Appdata))
+            if (!Directory.Exists(appdata))
             {
-                Directory.CreateDirectory(Appdata);
+                Directory.CreateDirectory(appdata);
             }
-            if(File.Exists(ConfigPath))
+            if(File.Exists(configPath))
             {
-                cfg = JsonConvert.DeserializeObject<config>(File.ReadAllText(ConfigPath));
+                _cfg = JsonConvert.DeserializeObject<Config>(File.ReadAllText(configPath));
             }
             else
             {
-                cfg = new config();
-                createConfig();
-                File.WriteAllText(ConfigPath, JsonConvert.SerializeObject(cfg, Formatting.Indented));
+                _cfg = new Config();
+                CreateConfig();
+                File.WriteAllText(configPath, JsonConvert.SerializeObject(_cfg, Formatting.Indented));
             }
 
             if (toFind.ToLower() == "-help")
@@ -76,23 +77,23 @@ namespace ffind
                  Console.WriteLine("Please Wait, Updating File Database...");
                  Console.WriteLine("This may take a while.");
                  Console.WriteLine("Errors during this process are expected, you can safely ignore them.");
-                 UpdateDB();
-                 File.WriteAllText(dbPath, Compress(JsonConvert.SerializeObject(fileList)));
+                 UpdateDb();
+                 File.WriteAllText(dbPath, Compress(JsonConvert.SerializeObject(_fileList)));
                  Console.WriteLine("Update Complete.");
                  return;
             }
             
             //fileList = JsonConvert.DeserializeObject<List<string>>(File.ReadAllText(dbPath));
-            fileList = JsonConvert.DeserializeObject<List<string>>(Decompress(File.ReadAllText(dbPath)));
-            doSearch(toFind);
+            _fileList = JsonConvert.DeserializeObject<List<string>>(Decompress(File.ReadAllText(dbPath)));
+            DoSearch(toFind);
         }
 
-        public static void doSearch(string toFind)
+        public static void DoSearch(string toFind)
         {
-            if (cfg.caseSensitive == false)
+            if (_cfg.caseSensitive == false)
             {
                 var toFindLower = toFind.ToLower();
-                foreach (var item in fileList)
+                foreach (var item in _fileList)
                 {
                     if (item.ToLower().Contains(toFindLower))
                     {
@@ -102,7 +103,7 @@ namespace ffind
             }
             else
             {
-                foreach (var item in fileList)
+                foreach (var item in _fileList)
                 {
                     if (item.Contains(toFind))
                     {
@@ -112,72 +113,73 @@ namespace ffind
             }
         }
         
-        public static void createConfig()
+        public static void CreateConfig()
         {
-	//Currently only supported by Arch based operating systems
-            cfg.PruneNames.Add(".git");
-            cfg.PruneNames.Add(".hg");
-            cfg.PruneNames.Add(".svn");
-           //#########################// 
-            cfg.PrunePaths.Add("/afs");
-            cfg.PrunePaths.Add("/dev");
-            cfg.PrunePaths.Add("/media");
-            cfg.PrunePaths.Add("/mnt");
-            cfg.PrunePaths.Add("/net");
-            cfg.PrunePaths.Add("/sfs");
-            cfg.PrunePaths.Add("/tmp");
-            cfg.PrunePaths.Add("/udev");
-            cfg.PrunePaths.Add("/var/cache");
-            cfg.PrunePaths.Add("/var/lock");
-            cfg.PrunePaths.Add("/var/run");
-            cfg.PrunePaths.Add("/var/spool");
-            cfg.PrunePaths.Add("/var/lib/pacman/local"),
-		    cfg.PrunePaths.Add("/var/tmp");
-	    cfg.PrunePaths.Add("/proc");
+	        //Currently only supported by Arch based operating systems
+            _cfg.PruneNames.Add(".git");
+            _cfg.PruneNames.Add(".hg");
+            _cfg.PruneNames.Add(".svn");
+            //#########################// 
+            _cfg.PrunePaths.Add("/afs");
+            _cfg.PrunePaths.Add("/dev");
+            _cfg.PrunePaths.Add("/media");
+            _cfg.PrunePaths.Add("/mnt");
+            _cfg.PrunePaths.Add("/net");
+            _cfg.PrunePaths.Add("/sfs");
+            _cfg.PrunePaths.Add("/tmp");
+            _cfg.PrunePaths.Add("/udev");
+            _cfg.PrunePaths.Add("/var/cache");
+            _cfg.PrunePaths.Add("/var/lock");
+            _cfg.PrunePaths.Add("/var/run");
+            _cfg.PrunePaths.Add("/var/spool");
+            _cfg.PrunePaths.Add("/var/lib/pacman/local");
+		    _cfg.PrunePaths.Add("/var/tmp");
+	        _cfg.PrunePaths.Add("/proc");
         }
 
-        public static void UpdateDB()
+        public static void UpdateDb()
         {
             //Start Indexing from root.
             string root = Path.GetPathRoot("");
             DirectoryInfo info = new DirectoryInfo(root ?? "/");
-            fileList = new List<string>();
-            WalkDirectoryTree(info);
+            _fileList = new List<string>();
+            var spinner = new ConsoleSpiner();
+            WalkDirectoryTree(info, spinner);
         }
 
-        static void WalkDirectoryTree(System.IO.DirectoryInfo root)
+        private static void WalkDirectoryTree(DirectoryInfo root, ConsoleSpiner spinner)
         {
-            System.IO.FileInfo[] files = null;
-            System.IO.DirectoryInfo[] subDirs = null;
-            
+            FileInfo[] files = null;
+            DirectoryInfo[] subDirs = null;
+            spinner.Turn();
             try
             {
                 files = root.GetFiles("*.*");
-             catch (UnauthorizedAccessException e)
-           	 {
+            }catch (UnauthorizedAccessException e){
                 //We're not authorized, and that's fine.
-                Console.WriteLine("Cannot access {0}, Permission Denied, but this is expected.", e);
-		 }
-            catch (System.IO.DirectoryNotFoundException e)
+                //Console.WriteLine("Cannot access {0}, Permission Denied, but this is expected.", e);
+                //Disabled because it will cause *excessive* spam and isn't useful for the user.
+            }
+            catch (DirectoryNotFoundException e)
             {
                 Console.WriteLine(e.Message);
             }
 
             if (files != null)
             {
-                foreach (System.IO.FileInfo fi in files)
+                foreach (FileInfo fi in files)
                 {
-                    fileList.Add(fi.FullName);
+                    _fileList.Add(fi.FullName);
                 }
 
                 // Now find all the subdirectories under this directory.
                 subDirs = root.GetDirectories();
 
-                foreach (System.IO.DirectoryInfo dirInfo in subDirs)
+                foreach (DirectoryInfo dirInfo in subDirs)
                 {
-                    if (!cfg.PrunePaths.Contains(dirInfo.FullName))
+                    if (!_cfg.PrunePaths.Contains(dirInfo.FullName))
                     {
-                        if (!cfg.PruneNames.Contains(dirInfo.Name))
+                        if (!_cfg.PruneNames.Contains(dirInfo.Name))
                         {
                             try
                             {
@@ -185,7 +187,7 @@ namespace ffind
                                 if (!att.HasFlag(FileAttributes.ReparsePoint))
                                 {
                                     //Console.WriteLine("Entering " + dirInfo.FullName);
-                                    WalkDirectoryTree(dirInfo);
+                                    WalkDirectoryTree(dirInfo, spinner);
                                 }
                                 else
                                 {
@@ -202,48 +204,49 @@ namespace ffind
                 }
             }
         }
+
+        public class ConsoleSpiner
+        {
+            int counter;
+            public ConsoleSpiner()
+            {
+                counter = 0;
+            }
+            public void Turn()
+            {
+                counter++;        
+                switch (counter % 4)
+                {
+                    case 0: Console.Write("/"); break;
+                    case 1: Console.Write("-"); break;
+                    case 2: Console.Write("\\"); break;
+                    case 3: Console.Write("|"); break;
+                }
+                Console.SetCursorPosition(Console.CursorLeft - 1, Console.CursorTop);
+            }
+        }
         
         public static string Compress(string uncompressedString) 
         {
-        byte[] compressedBytes;
-
-        using (var uncompressedStream = new MemoryStream(Encoding.UTF8.GetBytes(uncompressedString)))
+            using var uncompressedStream = new MemoryStream(Encoding.UTF8.GetBytes(uncompressedString));
+        using var compressedStream = new MemoryStream(); 
+        if (_cfg.shouldCompressDB)
         {
-            using (var compressedStream = new MemoryStream())
-            { 
-                // setting the leaveOpen parameter to true to ensure that compressedStream will not be closed when compressorStream is disposed
-                // this allows compressorStream to close and flush its buffers to compressedStream and guarantees that compressedStream.ToArray() can be called afterward
-                // although MSDN documentation states that ToArray() can be called on a closed MemoryStream, I don't want to rely on that very odd behavior should it ever change
-                if (cfg.shouldCompressDB)
-                {
-                    using (var compressorStream = new DeflateStream(compressedStream, CompressionLevel.Optimal, true))
-                    {
-                        uncompressedStream.CopyTo(compressorStream);
-                    }
-                }
-                else
-                {
-                    using (var compressorStream = new DeflateStream(compressedStream, CompressionLevel.NoCompression, true))
-                    {
-                        uncompressedStream.CopyTo(compressorStream);
-                    }
-                }
-
-
-                // call compressedStream.ToArray() after the enclosing DeflateStream has closed and flushed its buffer to compressedStream
-                compressedBytes = compressedStream.ToArray();
-            }
+            using var compressorStream = new DeflateStream(compressedStream, CompressionLevel.Optimal, true);
+            uncompressedStream.CopyTo(compressorStream);
+        }
+        else
+        {
+            using var compressorStream = new DeflateStream(compressedStream, CompressionLevel.NoCompression, true);
+            uncompressedStream.CopyTo(compressorStream);
         }
 
+        var compressedBytes = compressedStream.ToArray();
         return Convert.ToBase64String(compressedBytes);
     }
 
-    /// <summary>
-    /// Decompresses a deflate compressed, Base64 encoded string and returns an uncompressed string.
-    /// </summary>
-    /// <param name="compressedString">String to decompress.</param>
-    public static string Decompress(string compressedString)
-    {
+        private static string Decompress(string compressedString)
+        {
         byte[] decompressedBytes;
 
         var compressedStream = new MemoryStream(Convert.FromBase64String(compressedString));
@@ -260,7 +263,7 @@ namespace ffind
 
         return Encoding.UTF8.GetString(decompressedBytes);
     }
-        public class config
+        public class Config
         {
             public List<string> PruneNames = new List<string>();
             public List<string> PrunePaths = new List<string>();
